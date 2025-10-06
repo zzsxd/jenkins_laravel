@@ -26,14 +26,7 @@ pipeline {
             steps {
                 script {
                     sh 'mkdir -p nginx/conf.d storage bootstrap/cache'
-                    
-                    sh 'test -f .env.production && cp .env.production .env || true'
-                    
-                    sh '''
-                    if [ ! -f .env ]; then
-                        cp .env.example .env
-                    fi
-                    '''
+                    sh 'test -f .env.production && cp .env.production .env || cp .env.example .env'
                 }
             }
         }
@@ -41,7 +34,8 @@ pipeline {
         stage('Build Docker Images') {
             steps {
                 script {
-                    sh 'docker-compose build'
+                    // Используем новую команду docker compose
+                    sh 'docker compose build'
                 }
             }
         }
@@ -49,17 +43,14 @@ pipeline {
         stage('Start Services and Run Tests') {
             steps {
                 script {
-                    sh 'docker-compose up -d'
-                    
+                    sh 'docker compose up -d'
                     sh 'sleep 30'
-                    
                     sh '''
-                    docker-compose exec -T app composer install --no-interaction --no-dev
-                    docker-compose exec -T app php artisan key:generate
-                    docker-compose exec -T app php artisan migrate --force
+                    docker compose exec -T app composer install --no-interaction --no-dev
+                    docker compose exec -T app php artisan key:generate
+                    docker compose exec -T app php artisan migrate --force
+                    docker compose exec -T app php artisan test || echo "No tests found"
                     '''
-                    
-                    sh 'docker-compose exec -T app php artisan test || echo "No tests found"'
                 }
             }
         }
@@ -85,10 +76,8 @@ pipeline {
         stage('Deploy') {
             steps {
                 script {
-                    sh '''
-                    docker-compose down
-                    docker-compose up -d
-                    '''
+                    sh 'docker compose down'
+                    sh 'docker compose up -d'
                 }
             }
         }
@@ -96,11 +85,10 @@ pipeline {
 
     post {
         always {
-            sh 'docker-compose down || true'
+            sh 'docker compose down || true'
         }
         success {
             echo '🚀 Laravel application deployed successfully!'
-            echo '🌐 Application URL: http://YOUR_SERVER_IP'
         }
         failure {
             echo '❌ Deployment failed!'
